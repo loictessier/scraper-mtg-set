@@ -13,6 +13,6 @@ for i in range(1, 1742):
     src = img.get_attribute('src')
 
     # download the image
-    urllib.request.urlretrieve(src, "./output/MB2" + str(i).zfill(4))
+    urllib.request.urlretrieve(src, "./output/MB2" + str(i).zfill(4) + ".jpg")
 
 browser.close()
