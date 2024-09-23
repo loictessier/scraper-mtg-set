@@ -59,7 +59,7 @@ def get_set(set_code):
         'q': f'(game:paper) set:{set_code} include:extras unique:prints'
     }
     r = requests.get(url, params=payload).json()
-    next_page = r["next_page"]
+    next_page = r["next_page"] if "next_page" in r else None
     while r:
         for card in r["data"]:
             set_list.append(card)
@@ -101,7 +101,7 @@ def test_api(set='blb'):
         print(f"Rarete : { card['rarity'] }")
 
 if __name__ == "__main__":
-    filename = "test.xlsx"
+    filename = "test_foundations.xlsx"
     # test_api()
-    build_file(filename, get_set('blb'))
+    build_file(filename, get_set('fdn'))
     
