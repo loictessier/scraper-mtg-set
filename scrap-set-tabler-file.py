@@ -14,19 +14,28 @@ def set_headers(sheet):
             break
         sheet[c + '1'] = headers[i]
 
-def build_file(filename, set_list):
+def build_file(filename, eng_set_list, lang_fields_set_list):
     workbook = Workbook()
     sheet = workbook.active
     set_headers(sheet)
-    for i in range(1, len(set_list) + 1):
-        card = set_list[i-1]
+    for i in range(1, len(eng_set_list) + 1):
+        card = eng_set_list[i-1]
+        lang_card = next(x for x in lang_fields_set_list if x["collector_number"] == str(card['collector_number']))
+        # set code
         sheet["A" + str(i + 1)] = card['set'].upper()
+        # set code + collector number
         sheet["B" + str(i + 1)] = card['set'].upper() + str(card['collector_number'])
+        # collector number (in set)
         sheet["C" + str(i + 1)] = str(card['collector_number'])
+        # name
         sheet["D" + str(i + 1)] = card['name']
-        sheet["E" + str(i + 1)] = ""
+        # name lang
+        sheet["E" + str(i + 1)] = lang_card["printed_name"]
+        # mana cost
         sheet["F" + str(i + 1)] = card['mana_cost']
+        # converted mana cost
         sheet["G" + str(i + 1)] = str(int(card['cmc']))
+        # Color
         if len(card['colors']) > 0:
             sheet["H" + str(i + 1)] = card['colors'][0] if len(card['colors']) <= 1 else 'Z'
         elif "Artifact" in card['type_line'].split(' — ')[0]:
@@ -35,23 +44,46 @@ def build_file(filename, set_list):
             sheet["H" + str(i + 1)] = "L"
         else:
             sheet["H" + str(i + 1)] = "C"
+        # power
         if 'power' in card:
             sheet["I" + str(i + 1)] = card['power']
+        # toughness
         if 'toughness' in card:
             sheet["J" + str(i + 1)] = card['toughness']
+        # Type eng
         sheet["K" + str(i + 1)] = card['type_line'].split(' — ')[0]
-        sheet["L" + str(i + 1)] = ""
+        # Type lang
+        sheet["L" + str(i + 1)] = lang_card['printed_type_line'].split(' — ')[0]
+        # subtype US
         if len(card['type_line'].split(' — ')) > 1:
             sheet["M" + str(i + 1)] = card['type_line'].split(' — ')[1]
-        sheet["N" + str(i + 1)] = ""
+        # subtype lang
+        if len(lang_card['printed_type_line'].split(' — ')) > 1:
+            sheet["N" + str(i + 1)] = lang_card['printed_type_line'].split(' — ')[1].capitalize()
+        # keywords lang TODO
         sheet["O" + str(i + 1)] = ""
+        # artist
         sheet["P" + str(i + 1)] = card['artist']
+        # rules us
         sheet["Q" + str(i + 1)] = card['oracle_text']
-        sheet["R" + str(i + 1)] = ""
-        sheet["S" + str(i + 1)] = card['rarity']
+        # rules lang
+        sheet["R" + str(i + 1)] = lang_card["printed_text"]
+        # rarity
+        match card['rarity']:
+            case 'common':
+                sheet["S" + str(i + 1)] = "Commune"
+            case 'uncommon':
+                sheet["S" + str(i + 1)] = "Unco"
+            case 'rare':
+                sheet["S" + str(i + 1)] = "Rare"
+            case 'mythic':
+                sheet["S" + str(i + 1)] = "Mythique"
+            case _:
+                sheet["S" + str(i + 1)] = card['rarity']
     workbook.save(filename="./output/"+filename)
 
-def get_set(set_code):
+
+def fetch_eng_set(set_code):
     set_list = []
     url = "https://api.scryfall.com/cards/search"
     payload = {
@@ -72,11 +104,26 @@ def get_set(set_code):
                 next_page = None
         else:
             r = None
+    set_list.sort(key=lambda x: int(x['collector_number']))
     return set_list
 
-def test_api(set='blb'):
-    set_list = get_set(set)
+
+def fetch_lang_fields(set_code, set_list):
+    lang_fields_set_list = []
     for card in set_list:
+        lang_card = {}
+        url = f"https://api.scryfall.com/cards/{set_code}/{str(card['collector_number'])}/fr"
+        r = requests.get(url).json()
+        lang_card["collector_number"] = str(card["collector_number"])
+        lang_card["printed_name"] = r["printed_name"] if "printed_name" in r else ""
+        lang_card["printed_type_line"] = r["printed_type_line"] if "printed_type_line" in r else ""
+        lang_card["printed_text"] = r["printed_text"] if "printed_text" in r else ""
+        lang_fields_set_list.append(lang_card)      
+    return lang_fields_set_list
+
+
+def test_api(eng_set_list, lang_fields_set_list=None):
+    for card in eng_set_list:
         # card fields : (upper)set (blb), ((upper)set+)collector_number (122), name (Agate Assault), (fr) printed_name , mana_cost ({2}{R}), cmc (3.0), colors (R), power (None), toughness (None), type_line(split[" — "][0]) (Sorcery), (fr) printed_type_line(split[" — "][0]) (),  type_line(split[" — "][1]) (Sorcery), (fr) printed_type_line(split[" — "][1]) (), (fr) printed_text, artist (Slawomir Maniak), oracle_text, (fr) printed_text, rarity(matching table "Commune", "Unco", "Rare", "Mythique")
         print("-----------------------")
         print(f"Edition : { card['set'].upper() }")
@@ -99,9 +146,13 @@ def test_api(set='blb'):
         print(f"Artiste : { card['artist'] }")
         print(f"Regles US : { card['oracle_text'] }")
         print(f"Rarete : { card['rarity'] }")
+    print("-"*20)
+    print(f"Number of cards : {len(set_list)}")
 
 if __name__ == "__main__":
-    filename = "test_foundations.xlsx"
-    # test_api()
-    build_file(filename, get_set('fdn'))
-    
+    set_code = "fdn"
+    filename = f"test_{set_code}.xlsx"
+    eng_set_list = fetch_eng_set(set_code)
+    lang_fields_set_list = fetch_lang_fields(set_code, eng_set_list)
+    build_file(filename, eng_set_list, lang_fields_set_list)
+    # test_api(eng_set_list, lang_fields_set_list)
