@@ -10,7 +10,7 @@ Install dependencies:
 pipenv install
 ```
 
-For exemple, run script scrap-set-cards-visuals.py :
+For example, run script scrap-set-cards-visuals.py :
 
 ```
 pipenv run python3 scrap-set-cards-visuals.py
