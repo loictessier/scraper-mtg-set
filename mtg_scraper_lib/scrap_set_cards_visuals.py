@@ -72,7 +72,7 @@ def download_card(browser, card_ref, output_folder, prefix):
     return card_number
 
 
-def fetch_all_cards(set_code):
+def fetch_all_cards(set_code, on_progress=None):
     set_code = set_code.lower()
     current_ref = f"{set_code}001"
     output_folder = create_output_folder(set_code)
@@ -84,6 +84,8 @@ def fetch_all_cards(set_code):
         while current_ref:
             print(f"→ Téléchargement {current_ref}")
             download_card(browser, current_ref, output_folder, prefix)
+            if on_progress:
+                on_progress(set_code, current_ref)
 
             next_url = get_next_url(browser)
             next_card_id = extract_card_id_from_url(next_url)

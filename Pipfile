@@ -7,6 +7,9 @@ name = "pypi"
 selenium = "*"
 openpyxl = "*"
 requests = "*"
+flask = "*"
+python-dotenv = "*"
+dropbox = "*"
 
 [dev-packages]
 

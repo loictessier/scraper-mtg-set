@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>MTG Scraper</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 600px; margin: 40px auto; }
+      input, button { font-size: 16px; padding: 6px 10px; }
+    </style>
+  </head>
+  <body>
+    <h1>MTG Scraper</h1>
+    <p>Entrez le code d’extension (ex: FIC, DSK…)</p>
+
+    <input id="set" placeholder="FIC" />
+    <button id="go">Lancer</button>
+
+    <p id="progress"></p>
+    <pre id="result"></pre>
+
+    <script>
+        let intervalId;
+
+        async function checkProgress(set_code) {
+            const res = await fetch(`/api/progress/${set_code}`);
+            if (res.ok) {
+                const data = await res.json();
+                document.getElementById("progress").textContent = `Images téléchargées : ${data.done}`;
+
+                if (data.done_flag) {
+                    clearInterval(intervalId);
+                    if (data.url) {
+                        document.getElementById("result").innerHTML =
+                            `<a href="${data.url}" target="_blank">Télécharger le zip sur Dropbox</a>`;
+                    } else if (data.zip) {
+                        document.getElementById("result").innerHTML =
+                            `<a href="/download/${set_code}" target="_blank">Télécharger le zip local</a>`;
+                    }
+                }
+            }
+        }
+
+        document.getElementById("go").onclick = async () => {
+            const set_code = document.getElementById("set").value.trim();
+            document.getElementById("result").textContent = "Job lancé…";
+            document.getElementById("progress").textContent = "";
+
+            // lance le job en async
+            await fetch("/api/scrape", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({ set_code })
+            });
+
+            // démarre le polling
+            intervalId = setInterval(() => checkProgress(set_code), 2000);
+        };
+    </script>
+  </body>
+</html>
