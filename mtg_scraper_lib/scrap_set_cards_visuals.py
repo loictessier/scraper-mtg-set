@@ -10,7 +10,9 @@ from selenium.common.exceptions import NoSuchElementException
 
 def setup_browser():
     options = webdriver.FirefoxOptions()
-    options.headless = True #disable to display browser
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
     return webdriver.Firefox(options=options)
 
 
