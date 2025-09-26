@@ -4,14 +4,13 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-selenium = "*"
 openpyxl = "*"
 requests = "*"
 flask = "*"
 python-dotenv = "*"
 dropbox = "*"
 gunicorn = "*"
-chromedriver-autoinstaller = "*"
+playwright = "*"
 
 [dev-packages]
 

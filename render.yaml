@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: scrapper-mtg-set
+    env: python
+    plan: free
+    buildCommand: |
+      pip install -r requirements.txt
+      python -m playwright install chromium
+    startCommand: gunicorn mtg_scraper_ui.app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.12
