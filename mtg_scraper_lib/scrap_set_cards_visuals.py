@@ -57,6 +57,8 @@ def download_card(page, card_ref, output_folder, prefix):
     img = page.query_selector("#CardScan img")
     if img:
         src = img.get_attribute('src')
+        if src and src.startswith("../"):
+            src = urljoin("https://www.magic-ville.com/fr/", src)
         download_image(src, os.path.join(output_folder, f"{filename_prefix}.jpg"))
     else:
         print(f"[WARN] Image recto non trouvée pour {card_ref}")
