@@ -4,16 +4,18 @@ import urllib.request
 from urllib.parse import urljoin
 
 from selenium import webdriver
+import chromedriver_autoinstaller
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException
 
 
 def setup_browser():
-    options = webdriver.FirefoxOptions()
-    options.add_argument("--headless")
+    chromedriver_autoinstaller.install()
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    return webdriver.Firefox(options=options)
+    return webdriver.Chrome(options=options)
 
 
 def create_output_folder(set_prefix):
@@ -107,4 +109,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     fetch_all_cards(args.set_code)
-
