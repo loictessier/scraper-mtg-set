@@ -26,6 +26,11 @@ def run_job(set_code):
 def index():
     return app.send_static_file("index.html")
 
+@app.route("/oauth2/callback")
+def oauth2_callback():
+    code = request.args.get("code")
+    return f"Authorization code: {code}"
+
 @app.post("/api/scrape")
 def api_scrape():
     data = request.get_json(silent=True) or {}
