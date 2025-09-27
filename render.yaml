@@ -1,14 +1,13 @@
 services:
   - type: web
-    name: scrapper-mtg-set
+    name: mtg-scraper
     env: python
     plan: free
     buildCommand: |
+      pip install --upgrade pip
       pip install -r requirements.txt
-      PLAYWRIGHT_BROWSERS_PATH=/opt/render/project/.playwright-browsers python -m playwright install --with-deps chromium
-    startCommand: gunicorn mtg_scraper_ui.app:app
+      playwright install chromium
+    startCommand: python main.py
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.10.12
       - key: PLAYWRIGHT_BROWSERS_PATH
-        value: /opt/render/project/.playwright-browsers
+        value: /tmp/pw-browsers
