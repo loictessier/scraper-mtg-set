@@ -10,8 +10,8 @@ services:
       - "5000:5000"
     volumes:
       - ./output:/app/output
-    environment:
-      - FLASK_DEBUG=1
+    env_file:
+      - .env.dev
     command: python -m mtg_scraper_ui.app    
 
   scraper-prod:

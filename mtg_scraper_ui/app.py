@@ -7,7 +7,6 @@ from .services.dropbox_client import upload_and_share
 
 
 load_dotenv()
-DROPBOX_TOKEN = os.getenv("DROPBOX_TOKEN")
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 
@@ -15,11 +14,14 @@ def run_job(set_code):
     # exécution du scraping dans un thread séparé
     run_scrape(set_code)
     zip_path = zip_output(set_code)
-    if DROPBOX_TOKEN:
-        url = upload_and_share(zip_path, DROPBOX_TOKEN, folder="/MTG")
+
+    try:
+        url = upload_and_share(zip_path, folder="/MTG")
         progress[set_code]["url"] = url
-    else:
+    except Exception as e:
+        print(f"[WARN] Dropbox upload failed: {e}")
         progress[set_code]["zip"] = zip_path
+
     progress[set_code]["done_flag"] = True
 
 @app.route("/")
