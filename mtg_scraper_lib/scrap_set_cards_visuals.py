@@ -66,6 +66,8 @@ def download_card(page, card_ref, output_folder, prefix):
     img_back = page.query_selector("#CardScanBack img")
     if img_back:
         src_back = img_back.get_attribute('src')
+        if src_back and src_back.startswith("../"):
+            src_back = urljoin("https://www.magic-ville.com/fr/", src_back)
         download_image(src_back, os.path.join(output_folder, f"{filename_prefix}bis.jpg"))
 
     return card_number
