@@ -1,28 +1,18 @@
 version: "3.9"
 
 services:
-  scraper-dev:
+  mtg-scraper:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: mtg-scraper-dev
+    container_name: mtg-scraper
+    restart: unless-stopped
     ports:
-      - "5000:5000"
+      - "127.0.0.1:5050:5000"
     volumes:
       - ./output:/app/output
     env_file:
-      - .env.dev
-    command: python -m mtg_scraper_ui.app    
-
-  scraper-prod:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: mtg-scraper-prod
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./output:/app/output
+      - .env.prod
     environment:
       - FLASK_DEBUG=0
     command: gunicorn -b 0.0.0.0:5000 mtg_scraper_ui.app:app
