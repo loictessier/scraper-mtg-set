@@ -5,7 +5,7 @@ import logging
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify, send_file
 from .scraper import run_scrape, zip_output, progress
-from .services.dropbox_client import upload_and_share
+from .services.dropbox_client import upload_and_share, list_files
 
 # Configuration du logging global
 logging.basicConfig(
@@ -40,6 +40,10 @@ def run_job(set_code):
         logging.error(f"[{set_code}] Job failed: {e}", exc_info=True)
         progress[set_code]["done_flag"] = True
         progress[set_code]["error"] = str(e)
+
+
+def list_files():
+    try:
 
 @app.route("/")
 def index():
@@ -90,6 +94,9 @@ def api_progress(set_code):
 
     logging.debug(f"[{set_code}] Progress returned: {progress[set_code]}")
     return jsonify(progress[set_code])
+
+
+@app.get("/api/ ")
 
 if __name__ == "__main__":
     debug = os.getenv("FLASK_DEBUG", "0") == "1"

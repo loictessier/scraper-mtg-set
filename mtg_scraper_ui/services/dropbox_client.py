@@ -68,3 +68,15 @@ def upload_and_share(file_path, folder="/MTG"):
             logging.error(f"Failed to create shared link for {dest_path}: {e}", exc_info=True)
             raise
 
+
+def list_files(folder="/MTG"):
+    dbx = get_dropbox_client()
+
+    logging.info(f"Listing content of folder: {folder}")
+    try:
+        list = dbx.files_list_folder(folder)
+    except Exception as e:
+        logging.error(f"Dropbox listing failed for {folder}: {e}", exc_info=True)
+        raise
+
+    return list

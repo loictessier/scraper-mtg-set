@@ -6,17 +6,30 @@
     <style>
       body { font-family: system-ui, sans-serif; max-width: 600px; margin: 40px auto; }
       input, button { font-size: 16px; padding: 6px 10px; }
+      #wrapper { display: grid; grid-template-columns: repeat(2, minmax(300px, 1fr)); column-gap: 50px; row-gap: 10px; grid-auto-rows: minmax(100px, auto);}
+      #header { grid-column: 1 / 3; grid-row: 1;}
+      #scrapper-form { grid-column: 1; grid-row: 2;}
+      #set-list {grid-column: 2; grid-row: 2;}
     </style>
   </head>
   <body>
-    <h1>MTG Scraper</h1>
-    <p>Entrez le code d’extension (ex: FIC, DSK…)</p>
+    <div id="wrapper">
+      <div id="header">
+        <h1>MTG Scraper</h1>
+      </div>
+      <div id="scrapper-form">
+          <p>Entrez le code d’extension (ex: FIC, DSK…)</p>
 
-    <input id="set" placeholder="FIC" />
-    <button id="go">Lancer</button>
+          <input id="set" placeholder="FIC" />
+          <button id="go">Lancer</button>
 
-    <p id="progress"></p>
-    <pre id="result"></pre>
+          <p id="progress"></p>
+          <pre id="result"></pre>
+      </div>
+      <div id="set-list">
+        <p>Liste des set disponibles sur Dropbox :</p>
+      </div>
+    </div>
 
     <script>
         let intervalId;
