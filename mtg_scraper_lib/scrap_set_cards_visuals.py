@@ -92,6 +92,27 @@ def resolve_pics_folder(set_code: str) -> str:
     )
 
 
+def alternate_pics_folder(set_code: str, primary: str) -> Optional[str]:
+    """Other language folder to try when primary is missing a card (e.g. fraFR vs fra)."""
+    set_code = set_code.lower()
+    fr = f"{set_code}FR"
+    alt = set_code if primary == fr else fr
+    return alt if alt != primary else None
+
+
+def download_card_image(folders: List[str], number: int, path: str) -> bool:
+    """Try each Magic-Ville pics folder until one yields a JPEG."""
+    for i, folder in enumerate(folders):
+        url = image_url(folder, number)
+        if not image_exists(folder, number):
+            continue
+        if download_image(url, path):
+            if i > 0:
+                print(f"[INFO] {number:03d} pris depuis le dossier de repli pics/big/{folder}/")
+            return True
+    return False
+
+
 def _scryfall_get(url: str) -> dict:
     time.sleep(0.1)  # polite rate limit
     with _http_request(url) as resp:
@@ -179,6 +200,11 @@ def fetch_all_cards(set_code, on_progress: Optional[Callable] = None):
     prefix = set_code.upper()
 
     folder = resolve_pics_folder(set_code)
+    alt = alternate_pics_folder(set_code, folder)
+    folders = [folder] + ([alt] if alt else [])
+    if alt:
+        print(f"[INFO] Repli dossier alternatif si besoin : pics/big/{alt}/")
+
     cards = fetch_scryfall_cards(set_code)
     main_numbers = numeric_collector_numbers(cards)
     if not main_numbers:
@@ -189,11 +215,10 @@ def fetch_all_cards(set_code, on_progress: Optional[Callable] = None):
     downloaded = 0
 
     for num in main_numbers:
-        url = image_url(folder, num)
         local_name = f"{prefix}{num:04d}.jpg"
         path = os.path.join(output_folder, local_name)
-        print(f"→ Téléchargement {set_code}{num:03d} ({url})")
-        if download_image(url, path):
+        print(f"→ Téléchargement {set_code}{num:03d} (essaie {' / '.join(folders)})")
+        if download_card_image(folders, num, path):
             downloaded += 1
             if on_progress:
                 on_progress(set_code, f"{set_code}{num:03d}")
@@ -209,11 +234,10 @@ def fetch_all_cards(set_code, on_progress: Optional[Callable] = None):
             if not back_num:
                 print(f"[WARN] Verso introuvable pour {set_code}{num:03d}")
                 continue
-            url = image_url(folder, back_num)
             local_name = f"{prefix}{num:04d}bis.jpg"
             path = os.path.join(output_folder, local_name)
             print(f"→ Verso DFC {set_code}{num:03d} ← pics …/{back_num:03d}.jpg")
-            if download_image(url, path):
+            if download_card_image(folders, back_num, path):
                 downloaded += 1
                 if on_progress:
                     on_progress(set_code, f"{set_code}{num:03d}bis")
