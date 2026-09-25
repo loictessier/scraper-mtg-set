@@ -29,7 +29,10 @@
 
                 if (data.done_flag) {
                     clearInterval(intervalId);
-                    if (data.url) {
+                    if (data.error) {
+                        document.getElementById("result").textContent =
+                            `Erreur : ${data.error}`;
+                    } else if (data.url) {
                         document.getElementById("result").innerHTML =
                             `<a href="${data.url}" target="_blank">Télécharger le zip sur Dropbox</a>`;
                     } else if (data.zip) {

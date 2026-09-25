@@ -8,18 +8,21 @@ progress = {}
 
 def run_scrape(set_code: str):
     set_code = set_code.lower()
-    progress[set_code] = {"done": 0}
+    if set_code not in progress:
+        progress[set_code] = {}
+    progress[set_code]["done"] = 0
+    progress[set_code].pop("error", None)
 
     logging.info(f"[{set_code}] Starting card fetch...")
 
     def on_progress(code, ref):
-        progress[code]["done"] += 1
+        progress[code]["done"] = progress[code].get("done", 0) + 1
         if progress[code]["done"] % 10 == 0:
             logging.info(f"[{code}] Progress: {progress[code]['done']} cards downloaded")
 
     try:
-        fetch_all_cards(set_code, on_progress=on_progress)
-        logging.info(f"[{set_code}] Fetch completed. Total cards: {progress[set_code]['done']}")
+        total = fetch_all_cards(set_code, on_progress=on_progress)
+        logging.info(f"[{set_code}] Fetch completed. Total files: {total}")
     except Exception as e:
         logging.error(f"[{set_code}] Error during fetch: {e}", exc_info=True)
         raise
