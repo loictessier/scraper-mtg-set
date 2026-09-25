@@ -119,18 +119,93 @@ def _scryfall_get(url: str) -> dict:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def fetch_scryfall_cards(set_code: str) -> List[Dict]:
-    """All paper prints in the set (paginated)."""
-    query = urllib.parse.quote(f"e:{set_code.lower()} unique:prints")
-    url = f"{SCRYFALL_API}/cards/search?q={query}"
+def _scryfall_get_or_none(url: str) -> Optional[dict]:
+    try:
+        return _scryfall_get(url)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None
+        raise
+
+
+def fetch_scryfall_search(query: str) -> List[Dict]:
+    """Paginated Scryfall card search."""
+    url = f"{SCRYFALL_API}/cards/search?q={urllib.parse.quote(query)}"
     cards = []  # type: List[Dict]
     while url:
-        payload = _scryfall_get(url)
+        try:
+            payload = _scryfall_get(url)
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", errors="replace")
+            try:
+                payload = json.loads(body)
+            except Exception:
+                if e.code == 404:
+                    return cards
+                raise
+            if payload.get("object") == "error":
+                if e.code == 404 or payload.get("code") == "not_found":
+                    return cards
+                raise RuntimeError(f"Scryfall error: {payload.get('details') or payload}")
         if payload.get("object") == "error":
+            if payload.get("code") == "not_found":
+                return cards
             raise RuntimeError(f"Scryfall error: {payload.get('details') or payload}")
         cards.extend(payload.get("data") or [])
         url = payload.get("next_page")
     return cards
+
+
+def fetch_scryfall_cards(set_code: str) -> List[Dict]:
+    """All paper prints in the set (paginated). Tokens live in a separate set code."""
+    return fetch_scryfall_search(f"e:{set_code.lower()} unique:prints")
+
+
+def resolve_token_set_code(set_code: str) -> Optional[str]:
+    """
+    Related token set for an expansion, e.g. rix -> trix, dsk -> tdsk.
+    Tokens are NOT returned by e:{set} or e:{set} include:extras.
+    """
+    set_code = set_code.lower()
+    info = _scryfall_get_or_none(f"{SCRYFALL_API}/sets/{set_code}")
+    if not info:
+        return None
+    if info.get("set_type") == "token":
+        return None
+
+    candidate = f"t{set_code}"
+    tinfo = _scryfall_get_or_none(f"{SCRYFALL_API}/sets/{candidate}")
+    if (
+        tinfo
+        and tinfo.get("set_type") == "token"
+        and (tinfo.get("parent_set_code") or "").lower() == set_code
+    ):
+        return candidate
+
+    payload = _scryfall_get(f"{SCRYFALL_API}/sets")
+    for entry in payload.get("data") or []:
+        if (
+            entry.get("set_type") == "token"
+            and (entry.get("parent_set_code") or "").lower() == set_code
+        ):
+            return entry.get("code")
+    return None
+
+
+def fetch_related_token_cards(set_code: str) -> List[Dict]:
+    """Token/emblem cards from the related t{set} (numeric collector numbers only)."""
+    token_code = resolve_token_set_code(set_code)
+    if not token_code:
+        return []
+    print(f"[INFO] Jetons Scryfall : set {token_code}")
+    cards = fetch_scryfall_search(f"e:{token_code} unique:prints")
+    tokens = []
+    for card in cards:
+        cn = str(card.get("collector_number") or "")
+        if cn.isdigit():
+            tokens.append(card)
+    tokens.sort(key=lambda c: int(c.get("collector_number") or 0))
+    return tokens
 
 
 def numeric_collector_numbers(cards: List[Dict]) -> List[int]:
@@ -152,6 +227,90 @@ def dfc_collector_numbers(cards: List[Dict]) -> List[int]:
         if is_dfc and cn.isdigit():
             numbers.append(int(cn))
     return sorted(set(numbers))
+
+
+def contiguous_mv_numbers_after(folders: List[str], start: int, limit: int = 80) -> List[int]:
+    """Magic-Ville ids from start inclusive, while files exist contiguously."""
+    found = []  # type: List[int]
+    n = start
+    while len(found) < limit:
+        if any(image_exists(folder, n) for folder in folders):
+            found.append(n)
+            n += 1
+            time.sleep(0.05)
+        else:
+            break
+    return found
+
+
+def map_token_mv_numbers(block: List[int], n_dfc: int, n_tokens: int) -> List[int]:
+    """
+    On older sets (e.g. RIX), MV appends DFC backs then tokens after the main max.
+    On modern sets, DFC backs often sit in a high range (+1000) so the post-main
+    block is tokens only — or empty (then caller looks for a high token range).
+    """
+    if not block or n_tokens <= 0:
+        return []
+    if n_dfc > 0 and len(block) >= n_dfc + n_tokens:
+        return block[n_dfc : n_dfc + n_tokens]
+    if n_dfc > 0 and len(block) <= n_dfc:
+        # Looks like DFC backs only — do not mis-download them as tokens
+        return []
+    if len(block) >= n_tokens:
+        return block[:n_tokens]
+    return list(block)
+
+
+def discover_token_mv_numbers(
+    folders: List[str],
+    main_max: int,
+    n_tokens: int,
+    n_dfc: int,
+) -> List[int]:
+    """
+    Resolve Magic-Ville image ids for tokens.
+
+    1) Contiguous block right after the main set (RIX-style: DFC backs then tokens).
+    2) High id ranges with a gap (FRA-style: tokens start at 601 while main ends ~461).
+    """
+    if n_tokens <= 0:
+        return []
+
+    post_main = contiguous_mv_numbers_after(
+        folders, main_max + 1, limit=n_dfc + n_tokens + 20
+    )
+    mapped = map_token_mv_numbers(post_main, n_dfc, n_tokens)
+    if len(mapped) >= n_tokens:
+        return mapped[:n_tokens]
+
+    # High-range search: FRA tokens live at 601+, other sets may use 600/700/1000…
+    starts = [600, 601] + list(range(650, 2001, 50))
+    for start in starts:
+        if start <= main_max:
+            continue
+        if not any(image_exists(folder, start) for folder in folders):
+            continue
+        block = contiguous_mv_numbers_after(folders, start, limit=n_tokens + 5)
+        if len(block) >= n_tokens:
+            print(
+                f"[INFO] Jetons Magic-Ville trouvés en plage haute : "
+                f"{block[0]}–{block[n_tokens - 1]}"
+            )
+            return block[:n_tokens]
+        time.sleep(0.05)
+
+    return mapped
+
+
+def scryfall_image_url(card: Dict) -> Optional[str]:
+    uris = card.get("image_uris")
+    if not uris:
+        faces = card.get("card_faces") or []
+        if faces:
+            uris = faces[0].get("image_uris")
+    if not uris:
+        return None
+    return uris.get("large") or uris.get("normal") or uris.get("small")
 
 
 def discover_back_image_number(set_code: str, front_number: int) -> Optional[int]:
@@ -242,6 +401,67 @@ def fetch_all_cards(set_code, on_progress: Optional[Callable] = None):
                 if on_progress:
                     on_progress(set_code, f"{set_code}{num:03d}bis")
             time.sleep(0.15)
+
+    token_cards = fetch_related_token_cards(set_code)
+    if token_cards:
+        main_max = max(main_numbers)
+        mv_token_nums = discover_token_mv_numbers(
+            folders,
+            main_max=main_max,
+            n_tokens=len(token_cards),
+            n_dfc=len(dfc_numbers),
+        )
+        # Local names continue after the last main card (FRA0601 → FRA0462, …).
+        if mv_token_nums and len(mv_token_nums) >= len(token_cards):
+            print(
+                f"[INFO] {len(token_cards)} jeton(s) ← Magic-Ville "
+                f"{mv_token_nums[0]}–{mv_token_nums[len(token_cards) - 1]} "
+                f"renommés localement {prefix}{main_max + 1:04d}–"
+                f"{prefix}{main_max + len(token_cards):04d}"
+            )
+        elif mv_token_nums:
+            print(
+                f"[INFO] {len(mv_token_nums)}/{len(token_cards)} jeton(s) Magic-Ville ; "
+                "repli Scryfall uniquement pour les manquants"
+            )
+        else:
+            print(
+                f"[INFO] {len(token_cards)} jeton(s) ; "
+                "aucune plage Magic-Ville — repli Scryfall"
+            )
+
+        for i, card in enumerate(token_cards):
+            cn = int(card["collector_number"])
+            name = card.get("name") or f"token-{cn}"
+            local_num = main_max + 1 + i
+            local_name = f"{prefix}{local_num:04d}.jpg"
+            path = os.path.join(output_folder, local_name)
+            got = False
+
+            if i < len(mv_token_nums):
+                mv_num = mv_token_nums[i]
+                print(
+                    f"→ Jeton {name} (#{cn}) ← Magic-Ville …/{mv_num:03d}.jpg "
+                    f"→ {local_name}"
+                )
+                if download_card_image(folders, mv_num, path):
+                    downloaded += 1
+                    got = True
+                    if on_progress:
+                        on_progress(set_code, f"{set_code}{local_num:03d}")
+                time.sleep(0.15)
+
+            if not got:
+                url = scryfall_image_url(card)
+                if url:
+                    print(f"→ Jeton {name} (#{cn}) ← Scryfall (repli) → {local_name}")
+                    if download_image(url, path):
+                        downloaded += 1
+                        if on_progress:
+                            on_progress(set_code, f"{set_code}{local_num:03d}")
+                else:
+                    print(f"[WARN] Jeton sans image : {name} (#{cn})")
+                time.sleep(0.15)
 
     if downloaded == 0:
         raise RuntimeError(
