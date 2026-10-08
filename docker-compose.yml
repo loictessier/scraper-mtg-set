@@ -9,6 +9,7 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:5050:5000"
+      - "192.168.1.146:5050:5000"
     volumes:
       - ./output:/app/output
     env_file:
